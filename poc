@@ -1,0 +1,7 @@
+ JSP ไฟล์ รับข้อมูลจาก client ผ่าน POST เขียนข้อมูลนั้นลงไฟล์บน server-side
+WriteToTextFile() -> sendToWrapper() -> TextFileWrapper.jsp -> Save ลงเครื่อง ตาม path folder
+
+fetch POSTส่ง  path , folder , content ไป
+
+
+วิธีใช้ ใน หน้า page อื่น เอา  sendToWrapper ไปเพื่อส่งข้อมูลไป TextFileWrapper.jsp
