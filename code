@@ -1,0 +1,141 @@
+```
+ JSP ไฟล์ รับข้อมูลจาก client ผ่าน POST เขียนข้อมูลนั้นลงไฟล์บน server-side
+WriteToTextFile() -> sendToWrapper() -> TextFileWrapper.jsp -> Save ลงเครื่อง ตาม path folder
+
+fetch POSTส่ง  path , folder , content ไป
+
+วิธีใช้ ใน หน้า page อื่น เอา  sendToWrapper ไปเพื่อส่งข้อมูลไป TextFileWrapper.jsp
+
+//-------------------------------------------------------------\\
+   -----  TextFileWrapper.jsp  ------
+<%@ page import="java.io.*, java.util.*, java.nio.charset.StandardCharsets" %>
+<%
+    response.setContentType("text/plain; charset=UTF-8");
+    
+    String content = null;
+    String filename = null;
+    String folder = null;
+
+    // ตรวจสอบว่าเป็น multipart หรือ form data
+    String contentType = request.getContentType();
+    
+    if (contentType != null && contentType.startsWith("multipart/form-data")) {
+        // อ่านข้อมูลจาก multipart
+        try {
+            for (Part part : request.getParts()) {
+                String name = part.getName();
+                if ("content".equals(name)) {
+                    content = new String(part.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                } else if ("filename".equals(name)) {
+                    filename = new String(part.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                } else if ("folder".equals(name)) {
+                    folder = new String(part.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                }
+            }
+        } catch (Exception e) {
+            out.print("ERROR: Failed to parse multipart data - " + e.getMessage());
+            return;
+        }
+    } else {
+        // อ่านข้อมูลแบบปกติ
+        content = request.getParameter("content");
+        filename = request.getParameter("filename");
+        folder = request.getParameter("folder");
+    }
+
+    if (content != null && filename != null && folder != null) {
+        try {
+            // ตรวจสอบและทำความสะอาด path
+            if (!folder.endsWith("/") && !folder.endsWith("\\")) {
+                folder += File.separator;
+            }
+            
+            String fullPath = folder + filename;
+            File file = new File(fullPath);
+
+            // สร้างโฟลเดอร์ถ้ายังไม่มี
+            if (!file.getParentFile().exists()) {
+                file.getParentFile().mkdirs();
+            }
+
+            // เขียนไฟล์ด้วย encoding UTF-8
+            try (FileWriter fw = new FileWriter(file, StandardCharsets.UTF_8);
+                 BufferedWriter bw = new BufferedWriter(fw)) {
+                bw.write(content);
+            }
+
+            out.print("SUCCESS");
+            
+        } catch (SecurityException e) {
+            out.print("ERROR: Permission denied - " + e.getMessage());
+        } catch (IOException e) {
+            out.print("ERROR: IO Exception - " + e.getMessage());
+        } catch (Exception e) {
+            out.print("ERROR: " + e.getMessage());
+        }
+    } else {
+        out.print("ERROR: Missing required parameters (content, filename, folder)");
+    }
+%>
+//-------------------------------------------------------------\\
+   ----- เรียกใช้งานตาม file ต่างๆ  -------
+function WriteToFileBahtnet() {
+    const basePath1 = "C:/textfile/bahtnet_redemption/";
+    const basePath2 = "C:/textfile/bahtnet_redemption/archieved/";
+    const filename1 = "bahtnet_redemption.txt";
+    const filename2 = "<%= MTF.getOutput("tran_serial", resultObj) %>.txt";
+
+    // เตรียมเนื้อหาไฟล์ (เหมือนที่เคยเขียนด้วย file.WriteLine)
+    const lines = [];
+    <% 
+        for (int i = 0; i < MTF.getNumOfRow(summaryObj); i++) {
+            String temp = formatBahtNetData(
+                "PAYING AGENT", "TMBAM REDEMPTION",
+                MTF.getOutput("value_date", resultObj),
+                MTF.getOutput("value_date", resultObj),
+                MTF.getOutput("bahtnet_redemption_account", resultObj),
+                MTF.getOutput(i, summaryAmountCol, summaryObj),
+                MTF.getOutput(i, summaryBankCodeCol, summaryObj),
+                MTF.getOutput(i, summaryBranchCodeCol, summaryObj),
+                MTF.getOutput(i, summaryBankNameCol, summaryObj),
+                MTF.getOutput(i, summaryBahtnetRedeemAccountByBankCol, summaryObj),
+                "OUR"
+            );
+    %>
+        lines.push("<%= temp %>");
+    <% } %>
+
+    const content = lines.join("\r\n");
+
+    // ส่งไปยัง JSP
+    sendToWrapper(content, filename1, basePath1, 
+	function (result1) {
+        sendToWrapper(content, filename2, basePath2, 
+		function (result2) {
+            if (result1 === "SUCCESS" && result2 === "SUCCESS") {
+                alert("Finish: saved files to\n" + basePath1 + filename1 + "\nand\n" + basePath2 + filename2);
+            } else {
+                alert("Error occurred:\nFile1: " + result1 + "\nFile2: " + result2);
+            }
+        });
+    });
+}
+
+function sendToWrapper(content, filename, folder, callback) {
+    const params = new URLSearchParams();
+    params.append("content", content);
+    params.append("filename", filename);
+    params.append("folder", folder);
+
+    fetch("/sd/util/TextFileWrapper.jsp", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params.toString()
+    })
+    .then(res => res.text())
+    .then(callback)
+    .catch(err => callback("ERROR: " + err.message));
+}
+
+
+```
